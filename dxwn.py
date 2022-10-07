@@ -3,6 +3,7 @@ import discord
 import random
 import requests
 import json
+import html
 
 from dotenv import load_dotenv
 #from discord.ext import commands
@@ -22,17 +23,19 @@ prefix = ';'
 
 @client.event
 async def on_ready():
+    guilds = []
+
     for guild in client.guilds:
-        if guild.name==GUILD:
-            break
+        guilds.append(guild)
         
     #members = '\n - '.join([member.name for member in guild.members])
     
-    print(
-        f'{client.user} is connected to {guild.name}\n'
-        f'Guild ID: {guild.id}\n'
-        #f'Guild Members: \n - {members}'
-    )
+    print(f'{client.user} is connected to:\n')
+    for guild in guilds:
+        print(
+            f'name={guild.name} -- id={guild.id}'
+            #f'Guild Members: \n - {members}'
+        )
 
 @client.event
 async def on_member_join(member):
@@ -64,20 +67,75 @@ async def on_message(message):
             await message.channel.send(top_gifs["results"][random.randint(0,limit-1)]["url"])
         else:
             top_gifs = None
-            await message.channel.send(f'Could not find GIF for "{query}"')
-            print('Could not find GIF for "{query}"')
+            del_msg = await message.channel.send(f'Bad request')
+            await del_msg.delete(delay=5)
 
-        #print(top_gifs)
-     
-    elif message.content.startswith(f'{prefix}poll'): #;poll command
+    elif message.content.startswith(f'{prefix}gif'):
+
+        limit = 10
+        query = message.content.replace(f'{prefix}gif', '')
+
+        if (query != ''):
+            gifs = requests.get(
+                "https://tenor.googleapis.com/v2/search?q=%s&key=%s&client_key=%s&limit=%s" % (query, TENOR_KEY, TOKEN, limit))
+        else:
+            del_msg = await message.channel.send('Please enter a valid search term')
+            await del_msg.delete(delay=5)
+            return
+
+        if gifs.status_code == 200:
+            top_gifs = json.loads(gifs.content) #dict
+            await message.channel.send(top_gifs["results"][random.randint(0,limit-1)]["url"])
+        else:
+            top_gifs = None
+            del_msg = await message.channel.send('Bad request')
+            await del_msg.delete(delay=5)
+
+    elif message.content.startswith(f'{prefix}trivia'): #;trivia command
         b_True = Button(label='True', style=discord.ButtonStyle.green)
         b_False = Button(label='False', style=discord.ButtonStyle.red)
-        b_Youtube = Button(label='Youtube', url='https://youtube.com')
         view = View()
         view.add_item(b_True)
         view.add_item(b_False)
-        view.add_item(b_Youtube)
-        await message.channel.send(f'True or False?', view=view)
+
+        #scuffed i know, need fix
+        async def t_callback(interaction):
+            if q['results'][0]['correct_answer'] == 'True':
+                await interaction.response.edit_message(content=f"{question}\n\nCorrect!", view=None)
+            else:
+                await interaction.response.edit_message(content=f"{question}\n\nIncorrect...the correct answer is false", view=None)
+
+        async def f_callback(interaction):
+            if q['results'][0]['correct_answer'] == 'False':
+                await interaction.response.edit_message(content=f"{question}\n\nCorrect!", view=None)
+            else:
+                await interaction.response.edit_message(content=f"{question}\n\nIncorrect...the correct answer is true", view=None)
+
+        q = requests.get("https://opentdb.com/api.php?amount=1&type=boolean")
+        
+        if q.status_code == 200:
+            q = json.loads(q.content)
+            question = html.unescape(q['results'][0]['question']) #fix bad decoding
+            #print(q)
+
+            if q['response_code'] == 0:
+                await message.channel.send(question, view=view)
+                b_True.callback = t_callback
+                b_False.callback = f_callback
+                
+            else:
+                del_msg = await message.channel.send(f'Response code: {q["response_code"]}')
+                await del_msg.delete(delay=5)
+        else:
+            q = None
+            del_msg = await message.channel.send('Bad request')
+            await del_msg.delete(delay=5)
+
+
+
+
+
 
 
 client.run(TOKEN)
+
