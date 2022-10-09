@@ -1,4 +1,4 @@
-import os
+﻿import os
 import math
 import random
 import requests
@@ -108,7 +108,7 @@ async def on_message(message):
     if message.author == client.user:
         return
  
-    elif message.content.startswith(f'{prefix}bql'):    #;bql command
+    if message.content.startswith(f'{prefix}bql'):    #;bql command
 
         limit = 10  #number of search results
         query = 'bing chilling'
@@ -176,6 +176,13 @@ async def on_message(message):
 
             view = MCView(q, message.author)
             await message.channel.send(f'{q["results"][0]["question"]}', view=view)
+    else:
+        message_lower = message.content.lower()
+
+        if message_lower.find('penis') != -1 or message_lower.find('cock') != -1 or message_lower.find('dick') != -1:
+            await message.add_reaction('🍆')
+            if message_lower.find('sucker') != -1:
+                await message.add_reaction('💦')
 
 client.run(TOKEN)
 
