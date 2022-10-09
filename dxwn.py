@@ -1,50 +1,104 @@
 import os
-import discord
+import math
 import random
 import requests
 import json
 import html
+import logging
 
 from dotenv import load_dotenv
 #from discord.ext import commands
 from discord.ui import Button, View
+from discord import Client, Intents, ButtonStyle
 
 load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN', default=None)
 GUILD = os.getenv('DISCORD_GUILD', default=None)
 TENOR_KEY = os.getenv('TENOR_API_KEY', default=None)
 
-intents = discord.Intents.default()
+intents = Intents.default()
 intents.members = True
 intents.message_content = True
-client = discord.Client(intents=intents)
+client = Client(intents=intents)
+
+logfile = 'dxwn.log'
+fmt = '[%(levelname)s] %(asctime)s - %(message)s'
+
+logging.basicConfig(filename = logfile, filemode = 'w', format = fmt, level = logging.DEBUG)
 
 prefix = ';'
 
+class MCView(View):
+
+    q = None
+    author = None
+
+    def __init__(self, q, author):
+        super().__init__()
+
+        self.q = q
+        self.author = author
+        answers = q['results'][0]['incorrect_answers']
+        answers.append(q['results'][0]['correct_answer'])
+        random.shuffle(answers)
+        for i, answer in enumerate(answers):
+            self.add_item(MCButton(label=answer, style=ButtonStyle.gray, row=math.floor(i/2)))
+
+class MCButton(Button):
+
+    async def callback(self, interaction):
+        if interaction.user == self.view.author:
+            if self.view.q['results'][0]['correct_answer'] == self.label:
+                self.style = ButtonStyle.green
+                await interaction.response.edit_message(content=f"{self.view.q['results'][0]['question']}\n\nCorrect!", view=self.view)
+                self.view.stop()
+            else:
+                self.style = ButtonStyle.red
+                for item in self.view.children:
+                    if item.label == self.view.q['results'][0]['correct_answer']:
+                        item.style = ButtonStyle.green
+
+                await interaction.response.edit_message(content=f"{self.view.q['results'][0]['question']}\n\nIncorrect...", view=self.view)
+                self.view.stop()
+
+class TFView(View):
+
+    q = None
+    author = None
+
+    def __init__(self, q, author):
+        super().__init__()
+
+        self.q = q
+        self.author = author
+        self.add_item(TFButton(label='True', style=ButtonStyle.green))
+        self.add_item(TFButton(label='False', style=ButtonStyle.red))
+
+class TFButton(Button):
+
+    async def callback(self, interaction):
+        if interaction.user == self.view.author:
+            if self.view.q['results'][0]['correct_answer'] == self.label:
+                await interaction.response.edit_message(content=f"{self.view.q['results'][0]['question']}\n\nCorrect!", view=None)
+            else:
+                await interaction.response.edit_message(content=f"{self.view.q['results'][0]['question']}\n\nIncorrect...the correct answer is {self.view.q['results'][0]['correct_answer']}", view=None)
+     
 @client.event
 async def on_ready():
-    guilds = []
-
+    logging.info(f'{client.user} is connected to:\n')
     for guild in client.guilds:
-        guilds.append(guild)
-        
-    #members = '\n - '.join([member.name for member in guild.members])
-    
-    print(f'{client.user} is connected to:\n')
-    for guild in guilds:
-        print(
-            f'name={guild.name} -- id={guild.id}'
-            #f'Guild Members: \n - {members}'
-        )
+        logging.info(f'name={guild.name} -- id={guild.id}')
 
 @client.event
 async def on_member_join(member):
+    logging.info(f'{member.name} has joined {member.guild}')
     await member.guild.text_channels[0].send(
         f'Kachow, {member.name}! Welcome to {member.guild}! :skull:'
     )
 
 @client.event
 async def on_member_remove(member):
+    logging.info(f'{member.name} has left {member.guild}')
     await member.guild.text_channels[0].send(
         f'R.I.P. {member.name}, you will be remembered...'
     )
@@ -63,12 +117,11 @@ async def on_message(message):
             "https://tenor.googleapis.com/v2/search?q=%s&key=%s&client_key=%s&limit=%s" % (query, TENOR_KEY, TOKEN, limit))
 
         if gifs.status_code == 200:
-            top_gifs = json.loads(gifs.content) #dict
+            top_gifs = json.loads(gifs.content)
             await message.channel.send(top_gifs["results"][random.randint(0,limit-1)]["url"])
         else:
             top_gifs = None
-            del_msg = await message.channel.send(f'Bad request')
-            await del_msg.delete(delay=5)
+            logging.warning(f'Tenor request status {gifs.status_code}')
 
     elif message.content.startswith(f'{prefix}gif'):
 
@@ -84,58 +137,45 @@ async def on_message(message):
             return
 
         if gifs.status_code == 200:
-            top_gifs = json.loads(gifs.content) #dict
+            top_gifs = json.loads(gifs.content)
             await message.channel.send(top_gifs["results"][random.randint(0,limit-1)]["url"])
         else:
             top_gifs = None
-            del_msg = await message.channel.send('Bad request')
-            await del_msg.delete(delay=5)
+            logging.warning(f'Tenor request status {gifs.status_code}')
 
     elif message.content.startswith(f'{prefix}trivia'): #;trivia command
-        b_True = Button(label='True', style=discord.ButtonStyle.green)
-        b_False = Button(label='False', style=discord.ButtonStyle.red)
-        view = View()
-        view.add_item(b_True)
-        view.add_item(b_False)
 
-        #scuffed i know, need fix
-        async def t_callback(interaction):
-            if q['results'][0]['correct_answer'] == 'True':
-                await interaction.response.edit_message(content=f"{question}\n\nCorrect!", view=None)
-            else:
-                await interaction.response.edit_message(content=f"{question}\n\nIncorrect...the correct answer is false", view=None)
-
-        async def f_callback(interaction):
-            if q['results'][0]['correct_answer'] == 'False':
-                await interaction.response.edit_message(content=f"{question}\n\nCorrect!", view=None)
-            else:
-                await interaction.response.edit_message(content=f"{question}\n\nIncorrect...the correct answer is true", view=None)
-
-        q = requests.get("https://opentdb.com/api.php?amount=1&type=boolean")
+        q = requests.get("https://opentdb.com/api.php?amount=1")
         
         if q.status_code == 200:
             q = json.loads(q.content)
-            question = html.unescape(q['results'][0]['question']) #fix bad decoding
-            #print(q)
-
-            if q['response_code'] == 0:
-                await message.channel.send(question, view=view)
-                b_True.callback = t_callback
-                b_False.callback = f_callback
-                
-            else:
-                del_msg = await message.channel.send(f'Response code: {q["response_code"]}')
-                await del_msg.delete(delay=5)
         else:
             q = None
+            logging.warning(f'OpenTDB request status {q.status_code}')
             del_msg = await message.channel.send('Bad request')
             await del_msg.delete(delay=5)
+            return
+        
+        if q['response_code'] != 0:
+            logging.warning(f'OpenTDB bad result code {q["response_code"]}')
+            del_msg = await message.channel.send('No results')
+            await del_msg.delete(delay=5)
+            return
 
+        q['results'][0]['question'] = html.unescape(q['results'][0]['question']) #fix bad decoding
+        q['results'][0]['correct_answer'] = html.unescape(q['results'][0]['correct_answer'])
+        for i, answer in enumerate(q['results'][0]['incorrect_answers']):
+            q['results'][0]['incorrect_answers'][i] = html.unescape(answer)
 
+        if q['results'][0]['type'] == 'boolean': #True or False
 
+            view = TFView(q, message.author)
+            await message.channel.send(f'{q["results"][0]["question"]}', view=view)
+        
+        elif q['results'][0]['type'] == 'multiple': # Multiple Choice
 
-
-
+            view = MCView(q, message.author)
+            await message.channel.send(f'{q["results"][0]["question"]}', view=view)
 
 client.run(TOKEN)
 
