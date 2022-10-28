@@ -4,13 +4,14 @@
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>c5a23ffe-a80c-4f70-98c9-1c6ff37a5afb</ProjectGuid>
     <ProjectHome>.</ProjectHome>
-    <StartupFile>dxwn_bot.py</StartupFile>
+    <StartupFile>dxwn.py</StartupFile>
     <SearchPath>
     </SearchPath>
     <WorkingDirectory>.</WorkingDirectory>
     <OutputPath>.</OutputPath>
     <Name>dxwn-bot</Name>
     <RootNamespace>dxwn-bot</RootNamespace>
+    <SuppressConfigureTestFrameworkPrompt>true</SuppressConfigureTestFrameworkPrompt>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
     <DebugSymbols>true</DebugSymbols>
@@ -21,7 +22,22 @@
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="dxwn_bot.py" />
+    <Content Include=".env" />
+    <Content Include=".gitignore" />
+    <Content Include="dxwn.log" />
+    <Content Include="New Text Document.txt" />
+    <Content Include="test_json.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="cogs\gameCog.py" />
+    <Compile Include="cogs\musicCog.py" />
+    <Compile Include="cogs\mainCog.py" />
+    <Compile Include="TrueFalse.py" />
+    <Compile Include="MultipleChoice.py" />
+    <Compile Include="dxwn.py" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="cogs\" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
   <!-- Uncomment the CoreCompile target to enable the Build command in
