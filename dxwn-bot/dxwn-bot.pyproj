@@ -29,6 +29,7 @@
     <Content Include="test_json.txt" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="YTDLSource.py" />
     <Compile Include="cogs\gameCog.py" />
     <Compile Include="cogs\musicCog.py" />
     <Compile Include="cogs\mainCog.py" />
