@@ -1,2 +1,2 @@
 # dxwn-bot
-no particular functionality, tests
+Search for GIFs, test your knowledge with trivia questions, and listen to music with your friends :)
