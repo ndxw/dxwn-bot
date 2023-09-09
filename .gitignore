@@ -1,7 +1,18 @@
-.env
-New Text Document.txt
-test_json.txt
-.vs/
-dxwn-bot/.vs
-__pycache__/
-dxwn.log
+#Ignore everything
+*
+
+#Except
+!.gitignore
+!README.md
+
+!*.pdf
+!*.txt
+
+!*.py
+!*.yml
+!*.jar
+
+!*.mp3
+
+#Even in subdirectories
+!*/
