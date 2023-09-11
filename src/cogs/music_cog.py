@@ -88,6 +88,7 @@ class musicCog(commands.Cog):
         self.bot = bot
         self.PINK = discord.Color.from_rgb(255, 200, 255)
         self.rewind_stack = []
+        self.eq_preset = 'No Preset Selected'
 
         if not hasattr(bot, 'lavalink'):  # This ensures the client isn't overwritten during cog reloads.
             bot.lavalink = lavalink.Client(bot.user.id)
@@ -129,19 +130,20 @@ class musicCog(commands.Cog):
         # the easiest and simplest way of ensuring players are created.
 
         # These are commands that require the bot to join a voicechannel (i.e. initiating playback).
-        # Commands such as volume/skip etc don't require the bot to be in a voicechannel so don't need listing here.
-        should_connect = ctx.command.name in ('play',)
+        should_connect = ctx.command.name in ('play','pause','resume','disconnect','loop','clearqueue',
+                                              'remove','skip','rewind','shuffle','lowpass','highpass',
+                                              'timescale','tremolo','vibrato','rotate','equalizer','clearfilter')
 
         if not ctx.author.voice or not ctx.author.voice.channel:
             # Our cog_command_error handler catches this and sends it to the voicechannel.
             # Exceptions allow us to "short-circuit" command invocation via checks so the
             # execution state of the command goes no further.
-            raise commands.CommandInvokeError('Join a voicechannel first.')
+            raise commands.CommandInvokeError('Join a voice channel first.')
 
         v_client = ctx.voice_client
         if not v_client:
             if not should_connect:
-                raise commands.CommandInvokeError('Not connected.')
+                raise commands.CommandInvokeError('I\'m not connected.')
 
             permissions = ctx.author.voice.channel.permissions_for(ctx.me)
 
@@ -152,7 +154,7 @@ class musicCog(commands.Cog):
             await ctx.author.voice.channel.connect(cls=LavalinkVoiceClient)
         else:
             if v_client.channel.id != ctx.author.voice.channel.id:
-                raise commands.CommandInvokeError('You need to be in my voicechannel.')
+                raise commands.CommandInvokeError('Get in my voice channel, then we\'ll talk! :triumph:')
 
     async def track_hook(self, event):
         if isinstance(event, lavalink.events.QueueEndEvent):
@@ -191,6 +193,12 @@ class musicCog(commands.Cog):
         scrubber_str = scrubber_no_head[0:playhead_position] + playhead + scrubber_no_head[playhead_position+1:]
 
         return start + scrubber_str + end
+    
+    def generate_eq_table(self, eq:dict):
+        bands = eq['equalizer']
+        header = '┏━━━━━━┳━━━━━━━━┳━━━━━━━━┓\n┃' + 'Bass'.center(6) + '┃ Middle ┃ Treble ┃\n┣━━━━━━╋━━━━━━━━╋━━━━━━━━┫\n'
+        gains = '┃' + str(bands[0]['gain']).center(6) + '┃' + str(bands[6]['gain']).center(8) + '┃' + str(bands[12]['gain']).center(8) + '┃\n┗━━━━━━┻━━━━━━━━┻━━━━━━━━┛'
+        return header + gains
 
     @commands.command(aliases=['p'])
     async def play(self, ctx, *, query: str):
@@ -215,6 +223,8 @@ class musicCog(commands.Cog):
 
         embed = discord.Embed(color=self.PINK)
 
+        q_position = len(player.queue) + 1
+        
         # Valid loadTypes are:
         #   TRACK_LOADED    - single video/direct URL)
         #   PLAYLIST_LOADED - direct URL to playlist)
@@ -224,31 +234,33 @@ class musicCog(commands.Cog):
         if results.load_type == 'PLAYLIST_LOADED':
             tracks = results.tracks
             total_duration = 0
-
+            # Add all of the tracks from the playlist to the queue.
             for track in tracks:
-                # Add all of the tracks from the playlist to the queue.
                 player.add(requester=ctx.author.id, track=track)
                 total_duration += track.duration
 
+            # Build embed
             embed.title = 'Playlist Queued!'
-            embed.description = f'{results.playlist_info.name}'
-            embed.set_footer(text=f'{len(tracks)} tracks • Total Length: {self.format_time(total_duration)}', icon_url=self.bot.user.display_avatar.url)
+            embed.description = f'[{results.playlist_info.name}]({query})'
+            embed.add_field(name='Total Length', value=self.format_time(total_duration))
+            embed.add_field(name='Track Count', value=len(tracks))
             try:
                 embed.set_thumbnail(url=f'https://img.youtube.com/vi/{tracks[0].identifier}/default.jpg')
-            except: #discord.HTTPException?
+            except:
                 pass
 
         elif results.load_type == 'SEARCH_RESULT':
             track = results.tracks[0]
+            player.add(requester=ctx.author.id, track=track)
+
+            # Build embed
             embed.title = 'Track Queued!'
             embed.description = f'[{track.title}]({track.uri})'
-            embed.set_footer(text=f'Length: {self.format_time(track.duration)}', icon_url=self.bot.user.display_avatar.url)
+            embed.add_field(name='Length', value=self.format_time(track.duration))
             try:
                 embed.set_thumbnail(url=f'https://img.youtube.com/vi/{track.identifier}/default.jpg')
-            except: #discord.HTTPException?
+            except:
                 pass
-
-            player.add(requester=ctx.author.id, track=track)
 
         elif results.load_type == 'NO_MATCHES':
             embed.title = 'No Results.'
@@ -257,6 +269,21 @@ class musicCog(commands.Cog):
         elif results.load_type == 'LOAD_FAILED':
             embed.title = 'You Done Goofed.'
             embed.description = ''
+
+        # Position in queue, for playlists it's the position of the first track
+        if not player.is_playing:
+            footer_pos_in_q = 'Now Playing!'
+            footer_wait_time = ''
+        else:
+            footer_pos_in_q = f'Position in Queue: {q_position} • '
+            # Time until playing
+            wait_time = player.current.duration - player.position
+            for i in range(q_position-1):
+                wait_time += player.queue[i].duration
+            footer_wait_time = f'Wait Time: {self.format_time(wait_time)}'
+
+        embed.set_footer(text=footer_pos_in_q + footer_wait_time,
+                        icon_url=self.bot.user.display_avatar.url)
 
         await ctx.send(embed=embed)
 
@@ -270,8 +297,8 @@ class musicCog(commands.Cog):
         """ Pauses current track. """
         player = self.bot.lavalink.player_manager.get(ctx.guild.id)
 
-        if not ctx.voice_client:
-            return await ctx.send('Not connected.')
+        # if not ctx.voice_client:
+        #     return await ctx.send('Not connected.')
         if player.current == None:
             return await ctx.send('Nothin\' *to* pause...')
         
@@ -306,10 +333,9 @@ class musicCog(commands.Cog):
             # We can't disconnect, if we're not connected.
             return await ctx.send('Not connected.')
 
+        # Abuse prevention. Users not in voice channels, or not in the same voice channel as the bot may not interact with the bot.
         if not ctx.author.voice or (player.is_connected and ctx.author.voice.channel.id != int(player.channel_id)):
-            # Abuse prevention. Users not in voice channels, or not in the same voice channel as the bot
-            # may not disconnect the bot.
-            return await ctx.send('You\'re not in my voicechannel!')
+            return await ctx.send('Get in my channel, then we\'ll talk! :triumph:')
 
         # Clear the queue to ensure old tracks don't start playing
         # when someone else queues something.
@@ -324,9 +350,6 @@ class musicCog(commands.Cog):
     async def loop(self, ctx):
         """ Loops current track. """
         player = self.bot.lavalink.player_manager.get(ctx.guild.id)
-
-        if not ctx.voice_client:
-            return await ctx.send('Not connected.')
         
         if not player.is_playing:
             return await ctx.send('What, you want me to loop... nothing?')
@@ -347,9 +370,6 @@ class musicCog(commands.Cog):
         player = self.bot.lavalink.player_manager.get(ctx.guild.id)
         tracks_per_page = 8
         last_page = int(len(player.queue)/tracks_per_page) + 1
-
-        if not ctx.voice_client:
-            return await ctx.send('Not connected.')
         
         embed = discord.Embed(color=self.PINK, title='Queue')
 
@@ -369,11 +389,11 @@ class musicCog(commands.Cog):
                 total_duration += track.duration
                 continue
             else:
+                embed.add_field(name=f'{q_position+1}.', value='')
                 embed.add_field(name=track.title, 
-                                value=f'Requested by `{self.bot.get_user(int(track.requester)).display_name}` • \
-                                    Length: `{self.format_time(track.duration)}` • Wait Time: `{self.format_time(total_duration)}` • [[url]]({track.uri})', 
-                                inline=False)
-                #embed.add_field(name='', value=f'Length: {self.format_time(track.duration)} - T.U.P: {self.format_time(total_duration)}')
+                                value=f'Requested by <@{int(track.requester)}> • \
+                                    Length: `{self.format_time(track.duration)}` • Wait Time: `{self.format_time(total_duration)}` • [[url]]({track.uri})')
+                embed.add_field(name='', value='', inline=False)
                 total_duration += track.duration
 
         embed.set_footer(text=f'Page {page} of {last_page} • Total Length: {self.format_time(total_duration)}', icon_url=self.bot.user.display_avatar.url)
@@ -384,9 +404,10 @@ class musicCog(commands.Cog):
     async def clearqueue(self, ctx):
         """ Empties queue and stops playing. """
         # add voting system?
+        player = self.bot.lavalink.player_manager.get(ctx.guild.id)
 
-        if not ctx.voice_client:
-            return await ctx.send('Not connected.')
+        if len(player.queue) == 0:
+            return await ctx.send('Queue\'s already empty bruh...')
 
         view = View()
         view.add_item(NoButton())
@@ -394,16 +415,25 @@ class musicCog(commands.Cog):
         await ctx.send('Are you sure you want to clear the queue?', view=view)
 
     @commands.command(aliases=['rm'])
-    async def remove(self, ctx, index:int):
+    async def remove(self, ctx, q_position:int):
         """ Removes track at queue position. """
+        player = self.bot.lavalink.player_manager.get(ctx.guild.id)
+        q_index = q_position-1
+
+        if q_position > len(player.queue) or q_position < 1:
+            return await ctx.send(f'Ain\'t no track at position {q_position}!')
+        
+        # Abuse protection; only the requester can remove a song, unless they aren't in the voice channel, in which case anyone can remove it
+        if (ctx.author.id != player.queue[q_index].requester) and (self.is_in(user_id=player.queue[q_index].requester, channel_id=player.channel_id)):
+            return await ctx.send('A little rude to remove someone else\'s song, don\'t you think?')
+        
+        await ctx.send(f'Trashed **{player.queue[q_index].title}** for ya.')
+        player.queue.pop(q_index)
 
     @commands.command(aliases=['np'])
     async def nowplaying(self, ctx):
         """ Shows current track. """
         player = self.bot.lavalink.player_manager.get(ctx.guild.id)
-
-        if not ctx.voice_client:
-            return await ctx.send('Not connected.')
         
         if not player.is_playing:
             return await ctx.send('You are now listening to... nothing.')
@@ -433,8 +463,8 @@ class musicCog(commands.Cog):
         """ Skips current track. """
         player = self.bot.lavalink.player_manager.get(ctx.guild.id)
 
-        if not ctx.voice_client:
-            return await ctx.send('Not connected.')
+        if not player.is_playing:
+            return await ctx.send('\'NoneType\' object has no attr- wait a minute...')
         
         # Abuse protection; only song requester can skip, unless they aren't in the voice channel, in which case anyone can skip
         if (ctx.author.id != player.current.requester) and (self.is_in(user_id=player.current.requester, channel_id=player.channel_id)):
@@ -460,14 +490,13 @@ class musicCog(commands.Cog):
     async def shuffle(self, ctx):
         """ Shuffles queue. """
         player = self.bot.lavalink.player_manager.get(ctx.guild.id)
-
-        if not ctx.voice_client:
-            return await ctx.send('Not connected.')
         
         shuffled_queue = []
         queue_len = len(player.queue)
 
-        if queue_len > 1:
+        if queue_len == 0:
+            await ctx.send('How about you shuffle deez, huh?')
+        elif queue_len > 1:
             # based on Fisher-Yates algorithm
             for i in range(queue_len):
                 next_track = randint(0,queue_len - i - 1)
@@ -478,8 +507,8 @@ class musicCog(commands.Cog):
         else:
             await ctx.send('One song? Really?')
 
-    @commands.command(aliases=['lpf'])
-    async def lowpass(self, ctx, strength: float):
+    #@commands.command(aliases=['lpf'])
+    async def lowpass(self, ctx, strength: float=10.0):
         """ Sets the strength of the low pass filter. """
         # Get the player for this guild from cache.
         player = self.bot.lavalink.player_manager.get(ctx.guild.id)
@@ -511,12 +540,12 @@ class musicCog(commands.Cog):
         embed.description = f'Set **Low Pass** strength to {strength}.'
         await ctx.send(embed=embed)
 
-    @commands.command(aliases=['hpf'])
+    #@commands.command(aliases=['hpf'])
     async def highpass(self, ctx, strength: float):
         """ Sets the strength of the high pass filter. """
         # no highpass filter, maybe use karaoke filter?
 
-    @commands.command(aliases=['tsf'])
+    #@commands.command(aliases=['tsf'])
     async def timescale(self, ctx, speed:float = 1.0, pitch:float = 1.0, rate:float = 1.0):
         """ Speed up/slow down, change pitch, playback rate (wat difference speed vs. playback rate?). """
         # apparently player.position doesn't work correctly when track is sped up?
@@ -585,27 +614,129 @@ class musicCog(commands.Cog):
         embed.description = f'Set **Vibrato Filter** frequency to {frequency} and depth to {depth}.'
         await ctx.send(embed=embed)
 
-    @commands.command(aliases=['rtf'])
+    #@commands.command(aliases=['rtf'])
     async def rotate(self, ctx, frequency:float = 1.0):
         """ 8D audio effect. """
+        player = self.bot.lavalink.player_manager.get(ctx.guild.id)
+
+        # This enforces that strength should be a minimum of 0.
+        # There's no upper limit on this filter.
+        frequency = max(0.0, frequency)
+
+        # Even though there's no upper limit, we will enforce one anyway to prevent
+        # extreme values from being entered. This will enforce a maximum of 100.
+        frequency = min(100.0, frequency)
+
+        embed = discord.Embed(color=self.PINK, title='Rotate')
+
+        # A frequency of 0 effectively means this filter won't function, so we can disable it.
+        if frequency == 0.0:
+            await player.remove_filter(Rotation)
+            embed.description = 'Disabled **Rotation Filter**'
+            return await ctx.send(embed=embed)
+
+        # Lets create our filter.
+        rotation = Rotation()
+        rotation.update(frequency=frequency)  # Set the filter frequency to the user's desired level.
+
+        # This applies our filter. If the filter is already enabled on the player, then this will
+        # just overwrite the filter with the new values.
+        await player.set_filter(rotation)
+
+        embed.description = f'Set **Rotation Filter** frequency to {frequency}.'
+        await ctx.send(embed=embed)
 
     @commands.command(aliases=['eqf'])
-    async def equalizer(self, ctx):
+    async def equalizer(self, ctx, f_band:str=None, gain:float=0.0):
         """ You know what an equalizer is. """
-        # not sure about this one, maybe use discord.buttons to control it?
+        player = self.bot.lavalink.player_manager.get(ctx.guild.id)
 
-    @commands.command(aliases=['clearf'])
+        # if player does not have an equalizer filter applied, set EQ to zero
+        if not player.get_filter(Equalizer):
+            await player.update_filter(Equalizer, band=0, gain=0.0)
+
+        # -0.25 <= gain <= 1.0
+        gain = max(-0.25, gain)
+        gain = min(1.0, gain)
+
+        embed = discord.Embed(color=self.PINK, title='Equalizer')
+        bands = [] # list of frequency bands and respective gains
+
+        '''
+        Lavalink Equalizer filter is divided into 15 frequency bands indexed 0 through 14,
+        however for the sake of simplicity, this filter is divided into 3 bands:
+            Bass
+                25 Hz to 250 Hz, indexed 0 through 5
+            Middle
+                400 Hz to 4 kHz, indexed 6 through 11
+            Treble
+                6.3 kHz to 16 kHz, indexed 12 through 14
+            
+        Not inputting a frequency band will just show current equalizer gains.
+
+        Presets allow you to change all three frequency ranges at once
+        to give a song a certain feel.
+        '''
+        if f_band == 'bass':
+            for i in range(6):
+                bands.append((i,gain))
+            embed.description = f'Gain of bass range set to {gain}'
+            self.preset = 'No Preset Selected'
+        elif f_band == 'middle':
+            for i in range(6,12):
+                bands.append((i,gain))
+            embed.description = f'Gain of mid range set to {gain}'
+            self.preset = 'No Preset Selected'
+        elif f_band == 'treble':
+            for i in range(12,15):
+                bands.append((i,gain))
+            embed.description = f'Gain of treble range set to {gain}'
+            self.preset = 'No Preset Selected'
+        elif f_band == 'reset':
+            for i in range(15):
+                bands.append((i,0.0))
+            self.preset = 'No Preset Selected'
+        elif f_band == 'bright':
+            for i in range(6):
+                bands.append((i,-0.12))
+            for i in range(6,12):
+                bands.append((i,0.1))
+            for i in range(12,15):
+                bands.append((i,0.15))
+            self.preset = f'Preset: Bright'
+        elif f_band == 'mellow':
+            for i in range(6):
+                bands.append((i,-0.05))
+            for i in range(6,12):
+                bands.append((i,-0.08))
+            for i in range(12,15):
+                bands.append((i,-0.12))
+            self.preset = f'Preset: Mellow'
+        elif f_band == 'vocal':
+            for i in range(6):
+                bands.append((i,0.08))
+            for i in range(6,12):
+                bands.append((i,0.06))
+            for i in range(12,15):
+                bands.append((i,-0.05))
+            self.preset = f'Preset: Vocal'
+
+        await player.update_filter(Equalizer, bands=bands)  # update filter values
+            
+        # generate table displaying gains for all three frequency ranges
+        eq_table = self.generate_eq_table(player.get_filter(Equalizer).serialize())
+        embed.add_field(name='Gain', value='```' + eq_table + '```')
+        embed.set_footer(text=self.preset, icon_url=self.bot.user.display_avatar.url)
+
+        await ctx.send(embed=embed)
+
+    @commands.command(aliases=['clearf','cf'])
     async def clearfilter(self, ctx):
         """ Removes all filters applied to audio. """
         player = self.bot.lavalink.player_manager.get(ctx.guild.id)
         
-        if not ctx.voice_client:
-            return await ctx.send('Not connected.')
-        
-        embed = discord.Embed(color=self.PINK, title='No. More. Filters!')
-        
         await player.clear_filters()
-        await ctx.send(embed=embed)
+        await ctx.send('No. More. Filters!')
 
 async def setup(bot):
     await bot.add_cog(musicCog(bot))

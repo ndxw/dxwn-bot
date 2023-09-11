@@ -1,0 +1,111 @@
+{
+    "help":{
+        "general":[
+            {},
+            {
+                "help":{
+                    "description": "Displays valid commands.",
+                    "usage": ";help <category> <page number>",
+                    "valid categories": "general, game, music"
+                },
+                "ping":{
+                    "description": "Pong."
+                },
+                "gif":{
+                    "description": "Gives GIF.",
+                    "usage": ";gif <query>"
+                }
+            }
+        ],
+        "game":[
+            {},
+            {
+                "trivia":{
+                    "description": "Gives one trivia question, either multiple choice or T/F.",
+                    "usage": ";trivia <category>",
+                    "valid categories": "general, books, film, music, theatre, tv, video_games, board_games, nature, computers, math, myths, sports, geography, history, politics, art, celebrities, animals, vehicles, comics, tech, anime, cartoons"
+                }
+            }
+        ],
+        "music":[
+            {},
+            {
+                "play":{
+                    "description": "Searches Youtube for a given query and enqueues top result.",
+                    "usage": ";play <query or url>",
+                    "aliases": "p"
+                },
+                "pause":{
+                    "description": "Pauses current track.",
+                    "usage": ";pause"
+                },
+                "resume":{
+                    "description": "Resumes current track.",
+                    "usage": ";resume"
+                },
+                "disconnect":{
+                    "description": "Disconnects bot from voice channel.",
+                    "usage": ";disconnect",
+                    "aliases": "dc"
+                },
+                "nowplaying":{
+                    "description": "Displays current track.",
+                    "usage": ";nowplaying",
+                    "aliases": "np"
+                },
+                "queue":{
+                    "description": "Displays upcoming track(s).",
+                    "usage": ";queue <page number>",
+                    "aliases": "q"
+                },
+                "clearqueue":{
+                    "description": "Clears queue.",
+                    "usage": ";clearqueue",
+                    "aliases": "clear, cq"
+                },
+                "loop":{
+                    "description": "Loops current track (Toggle).",
+                    "usage": ";loop",
+                    "aliases": "encore"
+                },
+                "remove":{
+                    "description": "Removes track at given queue position.",
+                    "usage": ";remove <position>",
+                    "aliases": "rm"
+                },
+                "skip":{
+                    "description": "Skips current track.",
+                    "usage": ";skip",
+                    "aliases": "s"
+                },
+                "shuffle":{
+                    "description": "Shuffles queue.",
+                    "usage": ";shuffle",
+                    "aliases": "shakyshaky"
+                },
+                "tremolo":{
+                    "description": "Applies \"tremble\" effect to audio.\n0 ≤ frequency ≤ 100\n0 ≤ depth ≤ 1",
+                    "usage": ";tremolo <frequency> <depth>",
+                    "aliases": "tmf"
+                },
+                "vibrato":{
+                    "description": "Applies \"wobble\" effect to audio.\n0 ≤ frequency ≤ 14\n0 ≤ depth ≤ 1",
+                    "usage": ";vibrato <frequency> <depth>",
+                    "aliases": "vbf"
+                },
+                "equalizer":{
+                    "description": "Manipulates volume of various frequency bands.\n-0.25 ≤ gain ≤ 1",
+                    "usage": ";equalizer <preset>\n;equalizer <band> <gain>\n;equalizer reset",
+                    "aliases": "eqf",
+                    "valid presets": "bright, mellow, vocal",
+                    "valid bands": "bass, middle, treble"
+                },
+                "clearfilter":{
+                    "description": "Removes all filters applied to audio.",
+                    "usage": ";clearfilter",
+                    "aliases": "clearf, cf"
+                }
+            }
+        ]
+    }
+}

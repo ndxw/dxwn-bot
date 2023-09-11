@@ -2,7 +2,7 @@
 import discord
 from discord.ext import commands
 
-logfile = 'C:/Users/XxPan/Documents/fold/dxwn-bot-backup/log/dxwn.log'
+logfile = 'C:/Users/XxPan/Documents/fold/dxwn-bot/log/dxwn.log'
 fmt = '[%(levelname)s] %(asctime)s - %(message)s'
 
 logging.basicConfig(filename = logfile, filemode = 'w', format = fmt, level = logging.DEBUG)
@@ -31,7 +31,7 @@ class main_cog(commands.Cog):
         await ctx.send('pong')
 
     @commands.command()
-    async def help(self, ctx, page:int=1):
+    async def help(self, ctx, category:str=None, page:int=1):
         '''
         Custom help command, with explanations and usage of each command
         '''
@@ -39,6 +39,7 @@ class main_cog(commands.Cog):
         embed.set_footer(text = f'Page {page} of 4', icon_url=self.bot.user.display_avatar.url)
 
         if page == 1:
+            embed.description = 'General use commands'
             embed.add_field(name = 'help', value = 'Displays valid commands. \
                             \n\n__Usage__:\n;help <page number>')
             embed.add_field(name = 'ping', value = 'Pong.')

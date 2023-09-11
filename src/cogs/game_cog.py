@@ -13,7 +13,7 @@ load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN', default=None)
 TENOR_KEY = os.getenv('TENOR_API_KEY', default=None)
 
-logfile = 'C:/Users/XxPan/Documents/fold/dxwn-bot-backup/log/dxwn.log'
+logfile = 'C:/Users/XxPan/Documents/fold/dxwn-bot/log/dxwn.log'
 fmt = '[%(levelname)s] %(asctime)s - %(message)s'
 
 logging.basicConfig(filename = logfile, filemode = 'w', format = fmt, level = logging.DEBUG)

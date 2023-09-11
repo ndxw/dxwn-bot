@@ -11,6 +11,7 @@
 !*.py
 !*.yml
 !*.jar
+!help.json
 
 !*.mp3
 
