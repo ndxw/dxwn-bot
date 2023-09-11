@@ -1,4 +1,5 @@
 ﻿import logging
+import json
 import discord
 from discord.ext import commands
 
@@ -31,41 +32,45 @@ class main_cog(commands.Cog):
         await ctx.send('pong')
 
     @commands.command()
-    async def help(self, ctx, category:str=None, page:int=1):
+    async def help(self, ctx, category:str='general', page:int=1):
         '''
         Custom help command, with explanations and usage of each command
         '''
         embed = discord.Embed(title = 'Help', colour = self.PINK)
-        embed.set_footer(text = f'Page {page} of 4', icon_url=self.bot.user.display_avatar.url)
+        embed.description = category.capitalize()
 
-        if page == 1:
-            embed.description = 'General use commands'
-            embed.add_field(name = 'help', value = 'Displays valid commands. \
-                            \n\n__Usage__:\n;help <page number>')
-            embed.add_field(name = 'ping', value = 'Pong.')
-            embed.add_field(name = 'gif', value = 'Gives GIF.\n\n__Usage__:\n;gif <query>')
-            embed.add_field(name = 'trivia', value = 'Gives one trivia question,\neither multiple choice or T/F. \
-                            \n\n__Usage__:\n;trivia <category> \
-                            \n\n__Possible categories__:\ngeneral, books, film, music, theatre,\ntv, video_games, board_games, nature,\ncomputers, \
-                            math, myths, sports,\ngeography, history, politics, art,\ncelebrities, animals, vehicles,\ncomics, tech, anime, cartoons')
-        elif page == 2:
-            embed.add_field(name = 'play', value = 'Searches Youtube. \
-                            \n\n__Usage__:\n;play <query or url> \
-                            \n\n__Aliases__: p')
-            embed.add_field(name = 'pause', value = 'Pauses current track.')
-            embed.add_field(name = 'resume', value = 'Resumes current track.')
-            embed.add_field(name = 'disconnect', value = 'Disconnects bot from voice channel. \
-                            \n\n__Aliases__: dc')
-            embed.add_field(name = 'queue', value = 'Displays upcoming tracks. \
-                            \n\n__Usage__:\n;queue <page number> \
-                            \n\n__Aliases__: q')
-            embed.add_field(name = 'clearqueue', value = 'Clears queue. \
-                            \n\n__Aliases__: clear, cq')
-        elif page == 3:
-            pass
-        elif page == 4:
-            pass
+        f = open('resources/help.json', 'r')
+        try:
+            category_pages = json.load(f)['help'][category]
+        except KeyError:
+            return await ctx.send('Gimme a valid category!')
+        f.close()
 
+        if page < 1:
+            page = 1
+        elif page > len(category_pages)-1:
+            page = len(category_pages)-1
+        cmd_dict = category_pages[page]
+
+        for cmd_name in list(cmd_dict.keys()):
+            cmd = cmd_dict[cmd_name]
+            cmd_info = '' # contains all information regarding a given command
+
+            for info_name in list(cmd.keys()):
+                '''
+                Unlike "usage","aliases", etc. info types, the title corresponding
+                to "description" info is the command name itself.
+                '''
+                # first add info title
+                if info_name != 'description':
+                    cmd_info += f'__{info_name.capitalize()}__:\n'
+                # then info itself
+                cmd_info += f'{cmd[info_name]}\n\n'
+
+            # each command gets one field
+            embed.add_field(name=cmd_name, value=cmd_info)
+
+        embed.set_footer(text = f'Page {page} of {len(category_pages)-1}', icon_url=self.bot.user.display_avatar.url)
         await ctx.send(embed = embed)
 
 async def setup(bot):

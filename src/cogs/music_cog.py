@@ -1,4 +1,5 @@
 import re
+import json
 from random import randint
 import discord
 from discord.interactions import Interaction
@@ -8,6 +9,8 @@ import lavalink
 from lavalink.filters import LowPass, Tremolo, Vibrato, Rotation, Karaoke, Equalizer
 
 url_rx = re.compile(r'https?://(?:www\.)?.+')
+yt_url_rx = re.compile(r'^(https?\:\/\/)?(www\.)?(youtube\.com|youtu\.be)\/.+$')
+sc_url_rx = re.compile(r'^(https?:\/\/)?(www.)?(m\.)?soundcloud\.com\/[\w\-\.]+(\/)+[\w\-\.]+/?$')
 
 
 class LavalinkVoiceClient(discord.VoiceClient):
@@ -215,6 +218,7 @@ class musicCog(commands.Cog):
 
         # Get the results for the query from Lavalink.
         results = await player.node.get_tracks(query)
+        print(results)
 
         # Results could be None if Lavalink returns an invalid response (non-JSON/non-200 (OK)).
         # Alternatively, results.tracks could be an empty array if the query yielded no tracks.
@@ -246,10 +250,11 @@ class musicCog(commands.Cog):
             embed.add_field(name='Track Count', value=len(tracks))
             try:
                 embed.set_thumbnail(url=f'https://img.youtube.com/vi/{tracks[0].identifier}/default.jpg')
+                # https://i1.sndcdn.com/artworks-LiMdOzB6j4cg5SBy-yHG5pw-t500x500.jpg
             except:
                 pass
 
-        elif results.load_type == 'SEARCH_RESULT':
+        elif results.load_type == 'SEARCH_RESULT' or results.load_type == 'TRACK_LOADED':
             track = results.tracks[0]
             player.add(requester=ctx.author.id, track=track)
 
@@ -452,7 +457,7 @@ class musicCog(commands.Cog):
         # requester
         embed.set_footer(text=f'Requested by {requester_name}', icon_url=requester_avatar)
         try:
-            embed.set_thumbnail(url=f'https://img.youtube.com/vi/{player.current.identifier}/default.jpg')
+            embed.set_thumbnail(url=f'https://img.youtube.com/vi/{player.current.identifier}/maxresdefault.jpg')
         except: #discord.HTTPException?
             pass
         
@@ -696,30 +701,20 @@ class musicCog(commands.Cog):
             for i in range(15):
                 bands.append((i,0.0))
             self.preset = 'No Preset Selected'
-        elif f_band == 'bright':
+        else:
+            f = open('resources/eq_presets.json', 'r')
+            try:
+                preset = json.load(f)['presets'][f_band]
+            except KeyError:
+                return await ctx.send('Gimme a valid preset!')
+            
             for i in range(6):
-                bands.append((i,-0.12))
+                bands.append((i, preset[0]))
             for i in range(6,12):
-                bands.append((i,0.1))
+                bands.append((i, preset[1]))
             for i in range(12,15):
-                bands.append((i,0.15))
-            self.preset = f'Preset: Bright'
-        elif f_band == 'mellow':
-            for i in range(6):
-                bands.append((i,-0.05))
-            for i in range(6,12):
-                bands.append((i,-0.08))
-            for i in range(12,15):
-                bands.append((i,-0.12))
-            self.preset = f'Preset: Mellow'
-        elif f_band == 'vocal':
-            for i in range(6):
-                bands.append((i,0.08))
-            for i in range(6,12):
-                bands.append((i,0.06))
-            for i in range(12,15):
-                bands.append((i,-0.05))
-            self.preset = f'Preset: Vocal'
+                bands.append((i, preset[2]))
+            self.preset = f'Preset: {f_band.capitalize()}'
 
         await player.update_filter(Equalizer, bands=bands)  # update filter values
             

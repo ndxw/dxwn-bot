@@ -57,7 +57,9 @@
                     "description": "Displays upcoming track(s).",
                     "usage": ";queue <page number>",
                     "aliases": "q"
-                },
+                }
+            },
+            {
                 "clearqueue":{
                     "description": "Clears queue.",
                     "usage": ";clearqueue",
@@ -84,20 +86,22 @@
                     "aliases": "shakyshaky"
                 },
                 "tremolo":{
-                    "description": "Applies \"tremble\" effect to audio.\n0 ≤ frequency ≤ 100\n0 ≤ depth ≤ 1",
+                    "description": "Applies \"tremble\" effect to audio.\n*0 <= frequency <= 100\n0 <= depth <= 1*",
                     "usage": ";tremolo <frequency> <depth>",
                     "aliases": "tmf"
-                },
+                }
+            },
+            {
                 "vibrato":{
-                    "description": "Applies \"wobble\" effect to audio.\n0 ≤ frequency ≤ 14\n0 ≤ depth ≤ 1",
+                    "description": "Applies \"wobble\" effect to audio.\n*0 <= frequency <= 14\n0 <= depth <= 1*",
                     "usage": ";vibrato <frequency> <depth>",
                     "aliases": "vbf"
                 },
                 "equalizer":{
-                    "description": "Manipulates volume of various frequency bands.\n-0.25 ≤ gain ≤ 1",
+                    "description": "Manipulates volume of various frequency bands.\n*-0.25 <= gain <= 1*",
                     "usage": ";equalizer <preset>\n;equalizer <band> <gain>\n;equalizer reset",
                     "aliases": "eqf",
-                    "valid presets": "bright, mellow, vocal",
+                    "valid presets": "bright, mellow, vocal, airplanebuds",
                     "valid bands": "bass, middle, treble"
                 },
                 "clearfilter":{

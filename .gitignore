@@ -11,7 +11,8 @@
 !*.py
 !*.yml
 !*.jar
-!help.json
+!*.json
+/.vscode/*
 
 !*.mp3
 
