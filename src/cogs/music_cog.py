@@ -1,17 +1,28 @@
 import re
 import json
 from random import randint
+from os import getenv
+from dotenv import load_dotenv
+
 import discord
 from discord.interactions import Interaction
 from discord.ui import View, Button
 from discord.ext import commands
+
 import lavalink
-from lavalink.filters import LowPass, Tremolo, Vibrato, Rotation, Karaoke, Equalizer
+from lavalink.filters import LowPass, Tremolo, Vibrato, Rotation, Equalizer
+
+import spotipy
+from spotipy.oauth2 import SpotifyClientCredentials
 
 url_rx = re.compile(r'https?://(?:www\.)?.+')
 yt_url_rx = re.compile(r'^(https?\:\/\/)?(www\.)?(youtube\.com|youtu\.be)\/.+$')
 sc_url_rx = re.compile(r'^(https?:\/\/)?(www.)?(m\.)?soundcloud\.com\/[\w\-\.]+(\/)+[\w\-\.]+/?$')
+sp_url_rx = re.compile(r'^(spotify:|https:\/\/[a-z]+\.spotify\.com\/)')
 
+load_dotenv()
+ID = getenv('SPOTIPY_CLIENT_ID', default=None)
+SECRET = getenv('SPOTIPY_CLIENT_SECRET', default=None)
 
 class LavalinkVoiceClient(discord.VoiceClient):
     """
@@ -30,9 +41,9 @@ class LavalinkVoiceClient(discord.VoiceClient):
         else:
             self.client.lavalink = lavalink.Client(client.user.id)
             self.client.lavalink.add_node(
-                'localhost',
+                '127.0.0.1',
                 2333,
-                'youshallnotpass',
+                'schlumpshack',
                 'us',
                 'default-node'
             )
@@ -95,8 +106,9 @@ class musicCog(commands.Cog):
 
         if not hasattr(bot, 'lavalink'):  # This ensures the client isn't overwritten during cog reloads.
             bot.lavalink = lavalink.Client(bot.user.id)
-            bot.lavalink.add_node('127.0.0.1', 2333, 'youshallnotpass', 'eu', 'default-node')  # Host, Port, Password, Region, Name
-
+            bot.lavalink.add_node('127.0.0.1', 2333, 'schlumpshack', 'us', 'default-node')  # Host, Port, Password, Region, Name
+        if not hasattr(bot, 'spotipy'):
+            bot.spotipy = spotipy.Spotify(auth_manager=SpotifyClientCredentials(ID, SECRET))
         lavalink.add_event_hook(self.track_hook)
 
     def cog_unload(self):
@@ -218,8 +230,6 @@ class musicCog(commands.Cog):
 
         # Get the results for the query from Lavalink.
         results = await player.node.get_tracks(query)
-        print(results)
-
         # Results could be None if Lavalink returns an invalid response (non-JSON/non-200 (OK)).
         # Alternatively, results.tracks could be an empty array if the query yielded no tracks.
         if not results or not results.tracks:
@@ -248,11 +258,31 @@ class musicCog(commands.Cog):
             embed.description = f'[{results.playlist_info.name}]({query})'
             embed.add_field(name='Total Length', value=self.format_time(total_duration))
             embed.add_field(name='Track Count', value=len(tracks))
-            try:
+
+            # Result is from YouTube
+            if yt_url_rx.match(query):
                 embed.set_thumbnail(url=f'https://img.youtube.com/vi/{tracks[0].identifier}/default.jpg')
-                # https://i1.sndcdn.com/artworks-LiMdOzB6j4cg5SBy-yHG5pw-t500x500.jpg
-            except:
-                pass
+            # Result is from Spotify
+            elif sp_url_rx.match(query):
+                # Extract resource ID and type (album vs. playlist) from url
+                parse_1 = query.split('/')
+                resource_id = parse_1[-1].split('?')[0]
+                resource_type = parse_1[-2]
+                # Spotify treats albums and playlists slightly differently
+                if resource_type == 'album':
+                    embed.title = 'Album Queued!'
+                    resource = self.bot.spotipy.album(resource_id)
+                    # Potentially multiple artists
+                    artists = ''
+                    for artist in resource['artists']:
+                        artists += artist['name']
+                    embed.add_field(name='Artist', value=artists)
+
+                elif resource_type == 'playlist':
+                    resource = self.bot.spotipy.playlist(resource_id)
+                    embed.add_field(name='Author', value=resource['owner']['display_name'])
+
+                embed.set_thumbnail(url=resource['images'][0]['url'])
 
         elif results.load_type == 'SEARCH_RESULT' or results.load_type == 'TRACK_LOADED':
             track = results.tracks[0]
@@ -262,10 +292,23 @@ class musicCog(commands.Cog):
             embed.title = 'Track Queued!'
             embed.description = f'[{track.title}]({track.uri})'
             embed.add_field(name='Length', value=self.format_time(track.duration))
-            try:
-                embed.set_thumbnail(url=f'https://img.youtube.com/vi/{track.identifier}/default.jpg')
-            except:
-                pass
+
+            # Result is from YouTube
+            if yt_url_rx.match(query) or query.split(':')[0] == 'ytsearch':
+                thumbnail_url=f'https://img.youtube.com/vi/{track.identifier}/default.jpg'
+                embed.add_field(name='Channel', value=track['author'])
+            # Result is from Spotify
+            elif sp_url_rx.match(query):
+                resource_id = query.split('/')[-1].split('?')[0]
+                resource = self.bot.spotipy.track(resource_id)
+                thumbnail_url = resource['album']['images'][0]['url']
+
+                artists = ''
+                for artist in resource['artists']:
+                    artists += artist['name']
+                embed.add_field(name='Artist', value=artists)
+
+            embed.set_thumbnail(url=thumbnail_url)
 
         elif results.load_type == 'NO_MATCHES':
             embed.title = 'No Results.'
@@ -458,7 +501,7 @@ class musicCog(commands.Cog):
         embed.set_footer(text=f'Requested by {requester_name}', icon_url=requester_avatar)
         try:
             embed.set_thumbnail(url=f'https://img.youtube.com/vi/{player.current.identifier}/maxresdefault.jpg')
-        except: #discord.HTTPException?
+        except:
             pass
         
         await ctx.send(embed=embed)
@@ -497,7 +540,8 @@ class musicCog(commands.Cog):
         player = self.bot.lavalink.player_manager.get(ctx.guild.id)
         
         shuffled_queue = []
-        queue_len = len(player.queue)
+        queue = player.queue
+        queue_len = len(queue)
 
         if queue_len == 0:
             await ctx.send('How about you shuffle deez, huh?')
@@ -505,7 +549,8 @@ class musicCog(commands.Cog):
             # based on Fisher-Yates algorithm
             for i in range(queue_len):
                 next_track = randint(0,queue_len - i - 1)
-                shuffled_queue.append(player.queue[next_track])
+                shuffled_queue.append(queue[next_track])
+                queue.pop(next_track)
             player.queue = shuffled_queue
             await ctx.send('Queue Shuffled!')
     
