@@ -1,9 +1,18 @@
 ﻿import logging
 import json
+import aiohttp
+from random import randint
+from dotenv import load_dotenv
+from os import getenv
+
 import discord
 from discord.ext import commands
 
-logfile = 'C:/Users/XxPan/Documents/fold/dxwn-bot/log/dxwn.log'
+load_dotenv()
+TOKEN = getenv('DISCORD_TOKEN', default=None)
+TENOR_KEY = getenv('TENOR_API_KEY', default=None)
+
+logfile = './log/dxwn.log'
 fmt = '[%(levelname)s] %(asctime)s - %(message)s'
 
 logging.basicConfig(filename = logfile, filemode = 'w', format = fmt, level = logging.DEBUG)
@@ -72,6 +81,27 @@ class main_cog(commands.Cog):
 
         embed.set_footer(text = f'Page {page} of {len(category_pages)-1}', icon_url=self.bot.user.display_avatar.url)
         await ctx.send(embed = embed)
+
+    @commands.command() #gif
+    async def gif(self, ctx, *args):
+
+        limit = 10
+        query = " ".join(args)
+
+        if query != '':
+
+            async with aiohttp.ClientSession() as session:
+                async with session.get("https://tenor.googleapis.com/v2/search?q=%s&key=%s&client_key=%s&limit=%s" % (query, TENOR_KEY, TOKEN, limit)) as gifs:
+
+                    if gifs.status == 200:
+                        top_gifs = await gifs.json()
+                        await ctx.send(top_gifs["results"][randint(0,limit-1)]["url"])
+                    else:
+                        top_gifs = None
+                        #logging.warning(f'Tenor request status {gifs.status}')
+        else:
+            del_msg = await ctx.send('Egad! Gimme somethin\' to search for.')
+            await del_msg.delete(delay=5)
 
 async def setup(bot):
     await bot.add_cog(main_cog(bot))

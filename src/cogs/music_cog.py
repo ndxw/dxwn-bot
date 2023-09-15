@@ -1,6 +1,6 @@
 import re
 import json
-from random import randint
+from random import randint, shuffle
 from os import getenv
 from dotenv import load_dotenv
 
@@ -100,8 +100,6 @@ class LavalinkVoiceClient(discord.VoiceClient):
 class musicCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.PINK = discord.Color.from_rgb(255, 200, 255)
-        self.rewind_stack = []
         self.eq_preset = 'No Preset Selected'
 
         if not hasattr(bot, 'lavalink'):  # This ensures the client isn't overwritten during cog reloads.
@@ -230,12 +228,8 @@ class musicCog(commands.Cog):
 
         # Get the results for the query from Lavalink.
         results = await player.node.get_tracks(query)
-        # Results could be None if Lavalink returns an invalid response (non-JSON/non-200 (OK)).
-        # Alternatively, results.tracks could be an empty array if the query yielded no tracks.
-        if not results:
-            return await ctx.send('Nothing found!')
 
-        embed = discord.Embed(color=self.PINK)
+        embed = discord.Embed(color=self.bot.PINK)
 
         q_position = len(player.queue) + 1
 
@@ -352,45 +346,47 @@ class musicCog(commands.Cog):
         """ Pauses current track. """
         player = self.bot.lavalink.player_manager.get(ctx.guild.id)
 
-        # if not ctx.voice_client:
-        #     return await ctx.send('Not connected.')
+        embed = discord.Embed(color=self.bot.PINK, title='Nothin\' *to* pause...')
+        
         if player.current == None:
-            return await ctx.send('Nothin\' *to* pause...')
+            return await ctx.send(embed=embed)
         
         if player.paused == False:
-            await ctx.send(f'**{player.current.title}** paused!')
+            embed.title = f'**{player.current.title}** paused!'
             await player.set_pause(True)
         else:
-            await ctx.send('What, am I supposed to pause *harder*?')
+            embed.title = 'What, am I supposed to pause *harder*?'
+
+        await ctx.send(embed=embed)
 
     @commands.command(aliases=[])
     async def resume(self, ctx):
         """ Resumes current track. """
         player = self.bot.lavalink.player_manager.get(ctx.guild.id)
 
-        if not ctx.voice_client:
-            return await ctx.send('Not connected.')
+        embed = discord.Embed(color=self.bot.PINK, title='Give me something *to* resume...')
+
         if player.current == None:
-            return await ctx.send('Give me something *to* resume...')
+            return await ctx.send(embed=embed)
         
         if player.paused == True:
-            await ctx.send('Startin\' \'er back up!')
+            embed.title = 'Startin\' \'er back up!'
             await player.set_pause(False)
         else:
-            await ctx.send('Maybe you\'ve got me muted?')
+            embed.title = 'Maybe you\'ve got me muted?'
+
+        await ctx.send(embed=embed)
 
     @commands.command(aliases=['dc'])
     async def disconnect(self, ctx):
         """ Disconnects the player from the voice channel and clears its queue. """
         player = self.bot.lavalink.player_manager.get(ctx.guild.id)
 
-        if not ctx.voice_client:
-            # We can't disconnect, if we're not connected.
-            return await ctx.send('Not connected.')
+        embed = discord.Embed(color=self.bot.PINK, title='Get in my channel, then we\'ll talk!')
 
         # Abuse prevention. Users not in voice channels, or not in the same voice channel as the bot may not interact with the bot.
         if not ctx.author.voice or (player.is_connected and ctx.author.voice.channel.id != int(player.channel_id)):
-            return await ctx.send('Get in my channel, then we\'ll talk! :triumph:')
+            return await ctx.send(embed=embed)
 
         # Clear the queue to ensure old tracks don't start playing
         # when someone else queues something.
@@ -399,25 +395,29 @@ class musicCog(commands.Cog):
         await player.stop()
         # Disconnect from the voice channel.
         await ctx.voice_client.disconnect(force=True)
-        await ctx.send('See you next time!')
+        embed.title = 'See you next time!'
+        await ctx.send(embed=embed)
 
     @commands.command(aliases=['encore'])
     async def loop(self, ctx):
         """ Loops current track. """
         player = self.bot.lavalink.player_manager.get(ctx.guild.id)
+
+        embed = discord.Embed(color=self.bot.PINK, title='What, you want me to loop... nothing?')
         
         if not player.is_playing:
-            return await ctx.send('What, you want me to loop... nothing?')
+            return await ctx.send(embed=embed)
         
         if player.loop == player.LOOP_NONE:
             # 0: no loop
             # 1: loop current track
             # 2: loop queue
             player.set_loop(1)
-            await ctx.send(f'**{player.current.title}** is set to loop.')
+            embed.title = f'**{player.current.title}** is set to loop.'
         elif player.loop == player.LOOP_SINGLE: # disable loop
             player.set_loop(0)
-            await ctx.send(f'Knew you\'d get sick of **{player.current.title}**.')
+            embed.title = f'Knew you\'d get sick of **{player.current.title}**.'
+        await ctx.send(embed=embed)
 
     @commands.command(aliases=['q'])
     async def queue(self, ctx, page:int=1):
@@ -426,7 +426,7 @@ class musicCog(commands.Cog):
         tracks_per_page = 8
         last_page = int(len(player.queue)/tracks_per_page) + 1
         
-        embed = discord.Embed(color=self.PINK, title='Queue')
+        embed = discord.Embed(color=self.bot.PINK, title='Queue')
 
         if len(player.queue) == 0:  # empty queue
             embed.description = '\*crickets\* 🦗'
@@ -461,13 +461,16 @@ class musicCog(commands.Cog):
         # add voting system?
         player = self.bot.lavalink.player_manager.get(ctx.guild.id)
 
+        embed = discord.Embed(color=self.bot.PINK, title='Queue\'s already empty bruh...')
+
         if len(player.queue) == 0:
-            return await ctx.send('Queue\'s already empty bruh...')
+            return await ctx.send(embed=embed)
 
         view = View()
         view.add_item(NoButton())
         view.add_item(YesButton())
-        await ctx.send('Are you sure you want to clear the queue?', view=view)
+        embed.title = 'Are you sure you want to clear the queue?'
+        await ctx.send(embed=embed, view=view)
 
     @commands.command(aliases=['rm'])
     async def remove(self, ctx, q_position:int):
@@ -475,37 +478,41 @@ class musicCog(commands.Cog):
         player = self.bot.lavalink.player_manager.get(ctx.guild.id)
         q_index = q_position-1
 
+        embed = discord.Embed(color=self.bot.PINK, title=f'Ain\'t no track at position {q_position}!')
+
         if q_position > len(player.queue) or q_position < 1:
-            return await ctx.send(f'Ain\'t no track at position {q_position}!')
+            return await ctx.send(embed=embed)
         
         # Abuse protection; only the requester can remove a song, unless they aren't in the voice channel, in which case anyone can remove it
         if (ctx.author.id != player.queue[q_index].requester) and (self.is_in(user_id=player.queue[q_index].requester, channel_id=player.channel_id)):
-            return await ctx.send('A little rude to remove someone else\'s song, don\'t you think?')
-        
-        await ctx.send(f'Trashed **{player.queue[q_index].title}** for ya.')
-        player.queue.pop(q_index)
+            embed.title = 'A little rude to remove someone else\'s song, don\'t you think?'
+        else:
+            embed.title = f'Trashed **{player.queue[q_index].title}** for ya.'
+            player.queue.pop(q_index)
+
+        await ctx.send(embed=embed)
 
     @commands.command(aliases=['np'])
     async def nowplaying(self, ctx):
         """ Shows current track. """
         player = self.bot.lavalink.player_manager.get(ctx.guild.id)
+
+        embed = discord.Embed(color=self.bot.PINK, title='You are now listening to... nothing.')
         
         if not player.is_playing:
-            return await ctx.send('You are now listening to... nothing.')
+            return await ctx.send(embed=embed)
         
-        embed = discord.Embed(color=self.PINK, title='Now Playing:')
+        embed.title = 'Now Playing:'
         scrubber = self.generate_scrubber(player.position, player.current.duration)
         fmt_elapsed = self.format_time(player.position)
         fmt_duration = self.format_time(player.current.duration)
-        requester_name = self.bot.get_user(player.current.requester).display_name
-        requester_avatar = self.bot.get_user(player.current.requester).display_avatar.url
 
         # title, url
         embed.add_field(name='', value=f'[{player.current.title}]({player.current.uri})')
         # scrubber
         embed.add_field(name=f'{fmt_elapsed} {scrubber} {fmt_duration}', value='', inline=False)
-        # requester
-        embed.set_footer(text=f'Requested by {requester_name}', icon_url=requester_avatar)
+        embed.set_footer(icon_url=self.bot.user.display_avatar.url)
+
         # Result is from YouTube
         if player.current.source_name == 'youtube':
             thumbnail_url=f'https://img.youtube.com/vi/{player.current.identifier}/maxresdefault.jpg'
@@ -524,6 +531,9 @@ class musicCog(commands.Cog):
             thumbnail_url = 'https://cdn.discordapp.com/attachments/930498537463103549/1151582730069487697/soundcloud-logo_578229-231.png'
             embed.add_field(name='Artist', value=player.current.author)
 
+        # requester
+        embed.add_field(name='Requester', value=f'<@{player.current.requester}>')
+
         embed.set_thumbnail(url=thumbnail_url)
 
         await ctx.send(embed=embed)
@@ -533,26 +543,25 @@ class musicCog(commands.Cog):
         """ Skips current track. """
         player = self.bot.lavalink.player_manager.get(ctx.guild.id)
 
+        embed = discord.Embed(color=self.bot.PINK, title='\'NoneType\' object has no attr- wait a minute...')
+
         if not player.is_playing:
-            return await ctx.send('\'NoneType\' object has no attr- wait a minute...')
+            return await ctx.send(embed=embed)
         
         # Abuse protection; only song requester can skip, unless they aren't in the voice channel, in which case anyone can skip
         if (ctx.author.id != player.current.requester) and (self.is_in(user_id=player.current.requester, channel_id=player.channel_id)):
-            return await ctx.send('A little rude to skip someone else\'s song, don\'t you think?')
-        
-        await ctx.send(f'**{player.current.title}** skipped!')
-        await player.skip()
-        if player.current != None:
-            await ctx.send(f'Next up, **{player.current.title}**...')
+            embed.title = 'A little rude to skip someone else\'s song, don\'t you think?'
+        else:
+            embed.title = f'**{player.current.title}** skipped!'
+            await player.skip()
+            if player.current != None:
+                embed.description = f'Next up, **{player.current.title}**...'
+        await ctx.send(embed=embed)
 
     #@commands.command(aliases=['rw'])
     async def rewind(self, ctx):
         """ Rewinds one track. """
         '''
-        in play fxn add finished track to secondary list
-        when rewind is called, pop the last track added to secondary list and add to index 0 of lavalink player
-        then skip current track
-
         NOTE: don't think this is currently implementable
         '''
 
@@ -560,24 +569,18 @@ class musicCog(commands.Cog):
     async def shuffle(self, ctx):
         """ Shuffles queue. """
         player = self.bot.lavalink.player_manager.get(ctx.guild.id)
-        
-        shuffled_queue = []
-        queue = player.queue
-        queue_len = len(queue)
 
-        if queue_len == 0:
-            await ctx.send('How about you shuffle deez, huh?')
-        elif queue_len > 1:
-            # based on Fisher-Yates algorithm
-            for i in range(queue_len):
-                next_track = randint(0,queue_len - i - 1)
-                shuffled_queue.append(queue[next_track])
-                queue.pop(next_track)
-            player.queue = shuffled_queue
-            await ctx.send('Queue Shuffled!')
-    
+        embed = discord.Embed(color=self.bot.PINK)
+
+        if len(player.queue) == 0:
+            embed.title = 'How about you shuffle deez, huh?'
+        elif len(player.queue) > 1:
+            shuffle(player.queue)
+            embed.title = 'Queue Shuffled!'
         else:
-            await ctx.send('One song? Really?')
+            embed.title = 'One song? Really?'
+
+        await ctx.send(embed=embed)
 
     #@commands.command(aliases=['lpf'])
     async def lowpass(self, ctx, strength: float=10.0):
@@ -593,7 +596,7 @@ class musicCog(commands.Cog):
         # extreme values from being entered. This will enforce a maximum of 100.
         strength = min(100, strength)
 
-        embed = discord.Embed(color=self.PINK, title='Low Pass Filter')
+        embed = discord.Embed(color=self.bot.PINK, title='Low Pass Filter')
 
         # A strength of 0 effectively means this filter won't function, so we can disable it.
         if strength == 0.0:
@@ -635,7 +638,7 @@ class musicCog(commands.Cog):
         frequency = min(100.0, frequency)
         depth = min(1.0, depth)
 
-        embed = discord.Embed(color=self.PINK, title='Tremolo')
+        embed = discord.Embed(color=self.bot.PINK, title='Tremolo')
 
         # A strength of 0 effectively means this filter won't function, so we can disable it.
         if frequency == 0.0:
@@ -667,7 +670,7 @@ class musicCog(commands.Cog):
         frequency = min(14.0, frequency)
         depth = min(1.0, depth)
 
-        embed = discord.Embed(color=self.PINK, title='Vibrato')
+        embed = discord.Embed(color=self.bot.PINK, title='Vibrato')
 
         # A strength of 0 effectively means this filter won't function, so we can disable it.
         if frequency == 0.0:
@@ -699,7 +702,7 @@ class musicCog(commands.Cog):
         # extreme values from being entered. This will enforce a maximum of 100.
         frequency = min(100.0, frequency)
 
-        embed = discord.Embed(color=self.PINK, title='Rotate')
+        embed = discord.Embed(color=self.bot.PINK, title='Rotate')
 
         # A frequency of 0 effectively means this filter won't function, so we can disable it.
         if frequency == 0.0:
@@ -731,7 +734,7 @@ class musicCog(commands.Cog):
         gain = max(-0.25, gain)
         gain = min(1.0, gain)
 
-        embed = discord.Embed(color=self.PINK, title='Equalizer')
+        embed = discord.Embed(color=self.bot.PINK, title='Equalizer')
         bands = [] # list of frequency bands and respective gains
 
         '''
@@ -773,7 +776,8 @@ class musicCog(commands.Cog):
             try:
                 preset = json.load(f)['presets'][f_band]
             except KeyError:
-                return await ctx.send('Gimme a valid preset!')
+                embed.description = 'Gimme a valid preset!'
+                return await ctx.send(embed=embed)
             
             for i in range(6):
                 bands.append((i, preset[0]))
@@ -796,9 +800,11 @@ class musicCog(commands.Cog):
     async def clearfilter(self, ctx):
         """ Removes all filters applied to audio. """
         player = self.bot.lavalink.player_manager.get(ctx.guild.id)
+
+        embed = discord.Embed(color=self.bot.PINK, title='No. More. Filters!')
         
         await player.clear_filters()
-        await ctx.send('No. More. Filters!')
+        await ctx.send(embed=embed)
 
 async def setup(bot):
     await bot.add_cog(musicCog(bot))
@@ -809,7 +815,8 @@ class NoButton(Button):
         super().__init__(label='No', style=discord.ButtonStyle.danger)
 
     async def callback(self, interaction: Interaction):
-        await interaction.response.edit_message(content='Make up your mind!', view=None)
+        embed = discord.Embed(color=interaction.client.PINK, title='Make up your mind!')
+        await interaction.response.edit_message(embed=embed, view=None)
 
 class YesButton(Button):
     """ Clear queue confirmation. """
@@ -819,7 +826,8 @@ class YesButton(Button):
     async def callback(self, interaction: Interaction):
         player = interaction.client.lavalink.player_manager.get(interaction.guild_id)
         player.queue.clear()
-        await interaction.response.edit_message(content='Queue Cleared!', view=None)
+        embed = discord.Embed(color=interaction.client.PINK, title='Queue Cleared!')
+        await interaction.response.edit_message(embed=embed, view=None)
 
 class PreviousButton(Button):
     """ Queue page navigation. """

@@ -1,8 +1,8 @@
 import random
-
-from discord.ui import View, Button
-from discord import ButtonStyle
 from math import floor
+
+import discord
+from discord.ui import View, Button
 
 class MCView(View):
 
@@ -21,8 +21,8 @@ class MCView(View):
         random.shuffle(answers)
 
         #create button objects
-        for i, answer in enumerate(answers):                            
-            self.add_item(MCButton(label=answer, style=ButtonStyle.gray, row=floor(i/2)))  #buttons in two columns (2x2)
+        for answer in answers:                            
+            self.add_item(MCButton(label=answer, style=discord.ButtonStyle.gray))  #buttons in two columns (2x2)
 
 ##############################################################################################
 ##############################################################################################
@@ -34,18 +34,22 @@ class MCButton(Button):
         #only command invoker can interact with MC questions
         if interaction.user == self.view.author: 
 
+            embed = discord.Embed(color=interaction.client.PINK, title='Trivia', description=f"{self.view.q['results'][0]['question']}")
+
             if self.view.q['results'][0]['correct_answer'] == self.label:
-                self.style = ButtonStyle.green
-                await interaction.response.edit_message(content=f"{self.view.q['results'][0]['question']}\n\n**Correct!**", view=self.view)
+                self.style = discord.ButtonStyle.green
+                embed.add_field(name='✅ Correct!', value='')
+                await interaction.response.edit_message(embed=embed, view=self.view)
                 self.view.stop()
 
             else:
-                self.style = ButtonStyle.red
+                self.style = discord.ButtonStyle.red
                 for item in self.view.children:
                     if item.label == self.view.q['results'][0]['correct_answer']:
-                        item.style = ButtonStyle.green
+                        item.style = discord.ButtonStyle.green
 
-                await interaction.response.edit_message(content=f"{self.view.q['results'][0]['question']}\n\n**Incorrect...**", view=self.view)
+                embed.add_field(name='❌ Incorrect...', value='')
+                await interaction.response.edit_message(embed=embed, view=self.view)
                 self.view.stop()
 
 

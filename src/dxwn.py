@@ -1,18 +1,26 @@
 import os
 import asyncio
 
+import discord
 from dotenv import load_dotenv
 from discord.ext import commands
-from discord import Intents
 
 load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN', default=None)
 
-intents = Intents.default()
+intents = discord.Intents.default()
 intents.members = True
 intents.message_content = True
 
-dxwnBot = commands.Bot(command_prefix = ';', case_insensitive = True, intents=intents)
+class dxwnBot(commands.Bot):
+
+    def __init__(self):
+        super().__init__(command_prefix=';', case_insensitive=True, intents=intents)
+
+        self.PINK = discord.Color.from_rgb(255, 200, 255)
+
+
+dxwnBot = dxwnBot()
 dxwnBot.remove_command('help')
 
 async def load_cogs():

@@ -24,6 +24,17 @@
                     "description": "Gives one trivia question, either multiple choice or T/F.",
                     "usage": ";trivia <category>",
                     "valid categories": "general, books, film, music, theatre, tv, video_games, board_games, nature, computers, math, myths, sports, geography, history, politics, art, celebrities, animals, vehicles, comics, tech, anime, cartoons"
+                },
+                "sudoku":{
+                    "description": "Starts a game of sudoku with a given difficulty.",
+                    "usage": ";sudoku <difficulty>\n;sudoku reset\n;sudoku ff",
+                    "aliases": "sdk",
+                    "valid difficulties": "easy, medium, hard, expert"
+                },
+                "sudokuplay":{
+                    "description": "Adds a number to a given square in the current sudoku game.",
+                    "usage": ";sudokuplay <square> <number>",
+                    "aliases": "sdkp"
                 }
             }
         ],
