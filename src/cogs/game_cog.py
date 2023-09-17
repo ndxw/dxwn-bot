@@ -53,6 +53,32 @@ class game_cog(commands.Cog):
                     board_str += f'│ {str(column)} '
             board_str += '┃\n'
         return board_str + border_bottom
+    
+    def verify_sudoku(self, board):
+        fmt_board = []
+        for row in board:
+            fmt_board.append([0 if num is None else num for num in row])
+        # ensure rows sum to 45 and no dupes
+        for row in fmt_board:
+            if sum(row) != 45 or len(row) != len(set(row)):
+                return False
+            
+        # ensure columns sum to 45 and no dupes
+        columns = list(zip(*fmt_board))
+        for column in columns:
+            if sum(column) != 45 or len(column) != len(set(column)):
+                return False
+
+        # ensure boxes sum to 45 and no dupes
+        for boxi in range(9):
+            box = []
+            for rowi in range(boxi//3*3, boxi//3*3+3):
+                for coli in range(boxi%3*3, boxi%3*3+3):
+                    box.append(fmt_board[rowi][coli])
+            if sum(box) != 45 or len(box) != len(set(box)):
+                return False
+
+        return True
 
     @commands.command()
     async def trivia(self, ctx, category=''):
@@ -151,7 +177,7 @@ class game_cog(commands.Cog):
             if not str(ctx.author.id) in self.sudoku_games:
                 puzzle = sudoku.Sudoku(3).difficulty(difficulties[difficulty])
                 original_puzzle = sudoku.Sudoku(3, 3, board=puzzle.board)
-                self.sudoku_games[str(ctx.author.id)] = [puzzle, original_puzzle, puzzle.solve(), num_empty[difficulty]]
+                self.sudoku_games[str(ctx.author.id)] = [puzzle, original_puzzle, num_empty[difficulty]]
                 status = ''
             else:
                 return await ctx.send('You already have an ongoing game!')
@@ -188,7 +214,7 @@ class game_cog(commands.Cog):
         if self.sudoku_games[str(ctx.author.id)][1].board[row][column] == None:
             # don't decrement empty square counter if replacing incorrect square
             if self.sudoku_games[str(ctx.author.id)][0].board[row][column] == None:
-                self.sudoku_games[str(ctx.author.id)][3] -= 1
+                self.sudoku_games[str(ctx.author.id)][2] -= 1
 
             self.sudoku_games[str(ctx.author.id)][0].board[row][column] = number
         else:
@@ -199,8 +225,8 @@ class game_cog(commands.Cog):
         embed.add_field(name='', value=f'```{self.generate_board(board=self.sudoku_games[str(ctx.author.id)][0].board)}```')
         
         # checks if correct
-        if self.sudoku_games[str(ctx.author.id)][3] == 0:
-            if self.sudoku_games[str(ctx.author.id)][0].board == self.sudoku_games[str(ctx.author.id)][2].board:
+        if self.sudoku_games[str(ctx.author.id)][2] == 0:
+            if self.verify_sudoku(self.sudoku_games[str(ctx.author.id)][0].board):
                 self.sudoku_games.pop(str(ctx.author.id))
                 status = '🎉 Victory! 🎉'
             else:
