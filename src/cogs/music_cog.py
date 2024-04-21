@@ -107,7 +107,7 @@ class musicCog(commands.Cog):
             bot.lavalink.add_node('127.0.0.1', 2333, 'schlumpshack', 'us', 'default-node')  # Host, Port, Password, Region, Name
         if not hasattr(bot, 'spotipy'):
             bot.spotipy = spotipy.Spotify(auth_manager=SpotifyClientCredentials(ID, SECRET))
-        lavalink.add_event_hook(self.track_hook)
+        bot.lavalink.add_event_hook(self.track_hook)
 
     def cog_unload(self):
         """ Cog unload handler. This removes any event hooks that were registered. """
@@ -234,12 +234,12 @@ class musicCog(commands.Cog):
         q_position = len(player.queue) + 1
 
         # Valid loadTypes are:
-        #   TRACK_LOADED    - single video/direct URL)
-        #   PLAYLIST_LOADED - direct URL to playlist)
-        #   SEARCH_RESULT   - query prefixed with either ytsearch: or scsearch:.
-        #   NO_MATCHES      - query yielded no results
-        #   LOAD_FAILED     - most likely, the video encountered an exception during loading.
-        if results.load_type == 'PLAYLIST_LOADED':
+        #   TRACK    - single video/direct URL)
+        #   PLAYLIST - direct URL to playlist)
+        #   SEARCH   - query prefixed with either ytsearch: or scsearch:.
+        #   EMPTY      - query yielded no results
+        #   ERROR     - most likely, the video encountered an exception during loading.
+        if results.load_type == 'PLAYLIST':
             tracks = results.tracks
             total_duration = 0
             # Add all of the tracks from the playlist to the queue.
@@ -285,7 +285,7 @@ class musicCog(commands.Cog):
 
             embed.set_thumbnail(url=thumbnail_url)
 
-        elif results.load_type == 'SEARCH_RESULT' or results.load_type == 'TRACK_LOADED':
+        elif results.load_type == 'SEARCH' or results.load_type == 'TRACK':
             track = results.tracks[0]
             player.add(requester=ctx.author.id, track=track)
 

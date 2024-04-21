@@ -25,7 +25,7 @@ dxwnBot.remove_command('help')
 
 async def load_cogs():
     print('Loading cogs...')
-    os.chdir("C:/Users/XxPan/Documents/fold/dxwn-bot")
+    os.chdir("./")
 
     for filename in os.listdir("src/cogs"):
         if filename.endswith(".py"):
