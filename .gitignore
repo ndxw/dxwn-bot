@@ -9,7 +9,6 @@
 !*.txt
 
 !*.py
-!*.jar
 !*.json
 /.vscode/*
 
