@@ -228,22 +228,29 @@ class musicCog(commands.Cog):
 
         # Get the results for the query from Lavalink.
         results = await player.node.get_tracks(query)
+        source = results.tracks[0].source_name
 
         embed = discord.Embed(color=self.bot.PINK)
 
+        if results.load_type == 'EMPTY' or results.load_type == 'ERROR':
+            embed.title = 'No Results.'
+            embed.description = 'Ya done goofed.'
+            return await ctx.send(embed=embed)
+
         q_position = len(player.queue) + 1
+
 
         # Valid loadTypes are:
         #   TRACK    - single video/direct URL)
         #   PLAYLIST - direct URL to playlist)
         #   SEARCH   - query prefixed with either ytsearch: or scsearch:.
-        #   EMPTY      - query yielded no results
-        #   ERROR     - most likely, the video encountered an exception during loading.
+        #   EMPTY    - query yielded no results
+        #   ERROR    - most likely, the video encountered an exception during loading.
         if results.load_type == 'PLAYLIST':
-            tracks = results.tracks
+         
             total_duration = 0
             # Add all of the tracks from the playlist to the queue.
-            for track in tracks:
+            for track in results.tracks:
                 player.add(requester=ctx.author.id, track=track)
                 total_duration += track.duration
 
@@ -251,73 +258,72 @@ class musicCog(commands.Cog):
             embed.title = 'Playlist Queued!'
             embed.description = f'[{results.playlist_info.name}]({query})'
             embed.add_field(name='Total Length', value=self.format_time(total_duration))
-            embed.add_field(name='Track Count', value=len(tracks))
+            embed.add_field(name='Track Count', value=len(results.tracks))
 
-            # Result is from YouTube
-            if tracks[0].source_name == 'youtube':
-                thumbnail_url=f'https://img.youtube.com/vi/{tracks[0].identifier}/default.jpg'
-                embed.add_field(name='Channel', value=tracks[0].author)
-            # Result is from Spotify
-            elif tracks[0].source_name == 'spotify':
-                # Extract resource ID and type (album vs. playlist) from url
-                parse_1 = query.split('/')
-                resource_id = parse_1[-1].split('?')[0]
-                resource_type = parse_1[-2]
-                # Spotify treats albums and playlists slightly differently
-                if resource_type == 'album':
-                    embed.title = 'Album Queued!'
-                    resource = self.bot.spotipy.album(resource_id)
-                    # Potentially multiple artists
-                    artists = ''
-                    for artist in resource['artists']:
-                        artists += artist['name']
-                    embed.add_field(name='Artist', value=artists)
+            match source:
+                case 'youtube':
+                    thumbnail_url=results.tracks[0].artwork_url
+                    embed.add_field(name='Channel', value=results.tracks[0].author)
 
-                elif resource_type == 'playlist':
-                    resource = self.bot.spotipy.playlist(resource_id)
-                    embed.add_field(name='Author', value=resource['owner']['display_name'])
 
-                thumbnail_url = resource['images'][0]['url']
-            # Result is from Soundcloud
-            elif tracks[0].source_name == 'soundcloud':
-                thumbnail_url='https://cdn.discordapp.com/attachments/930498537463103549/1151582730069487697/soundcloud-logo_578229-231.png'
-                embed.add_field(name='Author', value=query.split('/')[-3])
+                case 'spotify':
+                    # Extract resource ID and type (album vs. playlist) from url
+                    resource_id = results.plugin_info['url'].split('/')[-1]
+                    resource_type = results.plugin_info['type']
+                    thumbnail_url = results.plugin_info['artworkUrl']
+
+                    # Spotify treats albums and playlists slightly differently
+                    match resource_type:
+                        case 'album':
+                            embed.title = 'Album Queued!'
+                            embed.add_field(name='Artist', value=results.plugin_info['author'])
+
+                        case 'playlist':
+                            embed.add_field(name='Author', value=results.plugin_info['author'])
+
+                    
+                case 'soundcloud':
+                    thumbnail_url=results.tracks[0].artwork_url
+                    embed.add_field(name='Author', value=query.split('/')[-3])
+                    
 
             embed.set_thumbnail(url=thumbnail_url)
 
+
         elif results.load_type == 'SEARCH' or results.load_type == 'TRACK':
-            track = results.tracks[0]
-            player.add(requester=ctx.author.id, track=track)
+            
+            player.add(requester=ctx.author.id, track=results.tracks[0])
 
             # Build embed
             embed.title = 'Track Queued!'
-            embed.description = f'[{track.title}]({track.uri})'
-            embed.add_field(name='Length', value=self.format_time(track.duration))
+            embed.description = f'[{results.tracks[0].title}]({results.tracks[0].uri})'
+            #embed.add_field(name='Length', value=self.format_time(results.tracks[0].duration))
+            embed.add_field(name='Length', value=self.format_time(total_duration))
 
-            # Result is from YouTube
-            if track.source_name == 'youtube':
-                thumbnail_url=f'https://img.youtube.com/vi/{track.identifier}/maxresdefault.jpg'
-                embed.add_field(name='Channel', value=track['author'])
-            # Result is from Spotify
-            elif track.source_name == 'spotify':
-                resource_id = query.split('/')[-1].split('?')[0]
-                resource = self.bot.spotipy.track(resource_id)
-                thumbnail_url = resource['album']['images'][0]['url']
+            match source:
+                case 'youtube':
+                    thumbnail_url = results.tracks[0].artwork_url
+                    embed.add_field(name='Channel', value=results.tracks[0]['author'])
+                
 
-                artists = ''
-                for artist in resource['artists']:
-                    artists += artist['name'] + '\n'
-                embed.add_field(name='Artist', value=artists)
-            elif track.source_name == 'soundcloud':
-                thumbnail_url = 'https://cdn.discordapp.com/attachments/930498537463103549/1151582730069487697/soundcloud-logo_578229-231.png'
-                embed.add_field(name='Artist', value=track.author)
+                case 'spotify':
+                    resource_id = results.tracks[0].identifier
+                    resource = self.bot.spotipy.track(resource_id)
+                    thumbnail_url = resource['album']['images'][0]['url']
+
+                    artists = ''
+                    for artist in resource['artists']:
+                        artists += artist['name'] + '\n'
+                    embed.add_field(name='Artist', value=artists)
+
+
+                case 'soundcloud':
+                    thumbnail_url = results.tracks[0].artwork_url
+                    embed.add_field(name='Artist', value=track.author)
+                
 
             embed.set_thumbnail(url=thumbnail_url)
-
-        else:
-            embed.title = 'No Results.'
-            embed.description = 'Ya done goofed.'
-            return await ctx.send(embed=embed)
+            
 
         # Position in queue, for playlists it's the position of the first track
         if not player.is_playing:
@@ -325,6 +331,7 @@ class musicCog(commands.Cog):
             footer_wait_time = ''
         else:
             footer_pos_in_q = f'Position in Queue: {q_position} • '
+
             # Time until playing
             wait_time = player.current.duration - player.position
             for i in range(q_position-1):
@@ -498,7 +505,6 @@ class musicCog(commands.Cog):
         player = self.bot.lavalink.player_manager.get(ctx.guild.id)
 
         embed = discord.Embed(color=self.bot.PINK, title='You are now listening to... nothing.')
-        
         if not player.is_playing:
             return await ctx.send(embed=embed)
         
@@ -513,23 +519,27 @@ class musicCog(commands.Cog):
         embed.add_field(name=f'{fmt_elapsed} {scrubber} {fmt_duration}', value='', inline=False)
         embed.set_footer(icon_url=self.bot.user.display_avatar.url)
 
-        # Result is from YouTube
-        if player.current.source_name == 'youtube':
-            thumbnail_url=f'https://img.youtube.com/vi/{player.current.identifier}/maxresdefault.jpg'
-            embed.add_field(name='Channel', value=player.current.author)
-        # Result is from Spotify
-        elif player.current.source_name == 'spotify':
-            resource = self.bot.spotipy.track(player.current.identifier)
-            thumbnail_url = resource['album']['images'][0]['url']
+        
+        match player.current.source_name:
+            # Result is from YouTube
+            case 'youtube':
+                thumbnail_url = player.current.artwork_url
+                embed.add_field(name='Channel', value=player.current.author)
 
-            artists = ''
-            for artist in resource['artists']:
-                artists += artist['name'] + '\n'
-            embed.add_field(name='Artist', value=artists)
-        # Result is from Soundcloud
-        elif player.current.source_name == 'soundcloud':
-            thumbnail_url = 'https://cdn.discordapp.com/attachments/930498537463103549/1151582730069487697/soundcloud-logo_578229-231.png'
-            embed.add_field(name='Artist', value=player.current.author)
+            # Result is from Spotify
+            case 'spotify':
+                resource = self.bot.spotipy.track(player.current.identifier)
+                thumbnail_url = resource['album']['images'][0]['url']
+
+                artists = ''
+                for artist in resource['artists']:
+                    artists += artist['name'] + '\n'
+                embed.add_field(name='Artist', value=artists)
+
+            # Result is from Soundcloud
+            case 'soundcloud':
+                thumbnail_url = player.current.artwork_url
+                embed.add_field(name='Artist', value=player.current.author)
 
         # requester
         embed.add_field(name='Requester', value=f'<@{player.current.requester}>')
