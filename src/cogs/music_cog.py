@@ -214,12 +214,35 @@ class musicCog(commands.Cog):
         return header + gains
 
     @commands.command(aliases=['p'])
-    async def play(self, ctx, *, query: str):
+    async def play(self, ctx, *, args: str):
         """ Searches and plays a song from a given query. """
         # Get the player for this guild from cache.
         player = self.bot.lavalink.player_manager.get(ctx.guild.id)
-        # Remove leading and trailing <>. <> may be used to suppress embedding links in Discord.
-        query = query.strip('<>')
+        # Remove leading and trailing <>. <> may be used to suppress embedding links in Discord,
+        # and split into query and options
+        query = args.strip('<>')
+        # arg_list = args.strip('<>').split()
+        # query = arg_list.pop(0)
+        display_results = False
+        num_displayed_results = 0
+        play_result_i = 0
+
+        # if len(arg_list) != 0:
+        #     try:
+        #         option_i = arg_list.index('-l')
+        #         display_results = True
+        #         num_displayed_results = arg_list[option_i+1]
+        #     except ValueError:
+        #         pass
+
+        #     try:
+        #         option_i = arg_list.index('-r')
+        #         play_result_i = int(arg_list[option_i+1])-1
+        #         play_result_i = max(0, play_result_i)
+        #     except ValueError:
+        #         pass
+
+        #     return await ctx.send(embed=embed)
 
         # Check if the user input might be a URL. If it isn't, we can Lavalink do a YouTube search for it instead.
         # SoundCloud searching is possible by prefixing "scsearch:" instead.
@@ -228,14 +251,14 @@ class musicCog(commands.Cog):
 
         # Get the results for the query from Lavalink.
         results = await player.node.get_tracks(query)
-        source = results.tracks[0].source_name
 
         embed = discord.Embed(color=self.bot.PINK)
-
         if results.load_type == 'EMPTY' or results.load_type == 'ERROR':
             embed.title = 'No Results.'
             embed.description = 'Ya done goofed.'
             return await ctx.send(embed=embed)
+        
+        source = results.tracks[0].source_name
 
         q_position = len(player.queue) + 1
 
@@ -298,7 +321,7 @@ class musicCog(commands.Cog):
             embed.title = 'Track Queued!'
             embed.description = f'[{results.tracks[0].title}]({results.tracks[0].uri})'
             #embed.add_field(name='Length', value=self.format_time(results.tracks[0].duration))
-            embed.add_field(name='Length', value=self.format_time(total_duration))
+            embed.add_field(name='Length', value=self.format_time(results.tracks[0].duration))
 
             match source:
                 case 'youtube':
@@ -319,7 +342,7 @@ class musicCog(commands.Cog):
 
                 case 'soundcloud':
                     thumbnail_url = results.tracks[0].artwork_url
-                    embed.add_field(name='Artist', value=track.author)
+                    embed.add_field(name='Artist', value=results.tracks[0].author)
                 
 
             embed.set_thumbnail(url=thumbnail_url)
@@ -428,7 +451,7 @@ class musicCog(commands.Cog):
 
     @commands.command(aliases=['q'])
     async def queue(self, ctx, page:int=1):
-        """ Shows the upcoming eight songs. """
+        """ Shows the upcoming songs. """
         player = self.bot.lavalink.player_manager.get(ctx.guild.id)
         tracks_per_page = 8
         last_page = int(len(player.queue)/tracks_per_page) + 1
@@ -542,7 +565,7 @@ class musicCog(commands.Cog):
                 embed.add_field(name='Artist', value=player.current.author)
 
         # requester
-        embed.add_field(name='Requester', value=f'<@{player.current.requester}>')
+        embed.add_field(name='Requested by', value=f'<@{player.current.requester}>')
 
         embed.set_thumbnail(url=thumbnail_url)
 
